@@ -28,13 +28,21 @@ const int LIMIAR_LUZ = 300;
 unsigned long ultimoMillisLuz = 0;
 const unsigned long INTERVALO_LUZ = 500;
 
-// ------------------- FUNÇÕES -------------------
+// ------------------- INICIALIZAÇÃO -------------------
 void iniciarMonitoramento()
 {
     // PRESSÃO
     scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
     scale.set_scale(41795);
-    delay(2000);
+
+    // Aguarda 2 segundos sem bloquear o sistema
+    unsigned long start = millis();
+    while (millis() - start < 2000)
+    {
+        // Executa outras tarefas aqui se necessário
+        yield(); // para evitar watchdog reset em alguns ambientes
+    }
+
     scale.tare();
     scale.power_up();
     Serial.println("Sensor de pressão iniciado");
@@ -52,6 +60,7 @@ void iniciarMonitoramento()
     pinMode(pinSensorLuz, INPUT);
 }
 
+// ------------------- LOOP DE MONITORAMENTO -------------------
 void atualizarMonitoramento()
 {
     unsigned long agora = millis();
@@ -96,7 +105,7 @@ void atualizarMonitoramento()
     }
 
     // --- RESUMO SERIAL ---
-    Serial.println("===== RESUMO MONITORAMENTO =====");
+    /* Serial.println("===== RESUMO MONITORAMENTO =====");
     Serial.print("Alarme Pressão: ");
     Serial.print(alarmeSensorPressao ? "ATIVO" : "inativo");
     Serial.print(" | Peso: ");
@@ -117,5 +126,5 @@ void atualizarMonitoramento()
     Serial.print(" | Leitura LDR: ");
     Serial.println(leituraLDR);
 
-    Serial.println("================================");
+    Serial.println("================================");*/
 }
