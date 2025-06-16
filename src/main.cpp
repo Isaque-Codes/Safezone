@@ -1,10 +1,11 @@
+#include <Arduino.h>
 #include "monitoramento.h"
 
 void setup()
 {
   Serial.begin(9600);
   iniciarMonitoramento();
-  Serial.println ("dvujdvujiuuief");
+  Serial.println("Sistema de monitoramento iniciado.");
 }
 
 void loop()
@@ -15,6 +16,9 @@ void loop()
 
   if (dispararAlarme)
   {
-    // Aciona o alarme
+    Serial.println("🚨 ALARME DISPARADO! 🚨");
+    // Adicione ação aqui, como acionar buzzer ou LED
   }
+
+  delay(100); // Pequeno atraso para estabilidade
 }

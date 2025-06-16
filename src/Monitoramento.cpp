@@ -3,51 +3,52 @@
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
 
-//* --- PRESSÃO (HX711) ---
+// ------------------- SENSOR DE PRESSÃO -------------------
 const int LOADCELL_DOUT_PIN = 5;
-const int LOADCELL_SCK_PIN = 19;
+const int LOADCELL_SCK_PIN = 18;
 HX711 scale;
+float medida = 0.0;
 bool alarmeSensorPressao = false;
-const float LIMIAR_PRESSAO = 5.0;
-const unsigned long INTERVALO_PRESSAO = 500;
-unsigned long ultimoMillisPressao = 0;
+const float LIMIAR_PESO = 5.0;
+unsigned long tempoAnteriorPressao = 0;
+const unsigned long INTERVALO_PRESSAO = 5000;
 
-//* --- MOVIMENTO (VL53L0X) ---
+// ------------------- SENSOR DE MOVIMENTO -------------------
 Adafruit_VL53L0X lox;
 bool alarmeSensorMovimento = false;
-const unsigned long INTERVALO_MOVIMENTO = 500;
+int distanciaCM = -1;
 unsigned long ultimoMillisMovimento = 0;
+const unsigned long INTERVALO_MOVIMENTO = 500;
 
-//* --- LUZ (LDR) ---
+// ------------------- SENSOR DE LUZ -------------------
 const int pinSensorLuz = 4;
 bool alarmeSensorLuz = false;
-const int LIMIAR_LUZ = 300;
-const unsigned long INTERVALO_LUZ = 500;
-unsigned long ultimoMillisLuz = 0;
-
-// Variáveis globais para mostrar no resumo
-float medida = 0.0;
-int distanciaCM = -1;
 int leituraLDR = 0;
+const int LIMIAR_LUZ = 300;
+unsigned long ultimoMillisLuz = 0;
+const unsigned long INTERVALO_LUZ = 500;
 
+// ------------------- FUNÇÕES -------------------
 void iniciarMonitoramento()
 {
-    //* PRESSÃO
+    // PRESSÃO
     scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
     scale.set_scale(41795);
     delay(2000);
     scale.tare();
+    scale.power_up();
+    Serial.println("Sensor de pressão iniciado");
 
-    //* MOVIMENTO
+    // MOVIMENTO
     Wire.begin();
     if (!lox.begin())
     {
-        Serial.println("Falha ao iniciar VL53L0X. Verifique conexão!");
+        Serial.println("Erro ao iniciar sensor VL53L0X");
         while (1)
             ;
     }
 
-    //* LUZ
+    // LUZ
     pinMode(pinSensorLuz, INPUT);
 }
 
@@ -55,26 +56,24 @@ void atualizarMonitoramento()
 {
     unsigned long agora = millis();
 
-    //* --- Sensor de Pressão ---
-    if (agora - ultimoMillisPressao >= INTERVALO_PRESSAO)
+    // --- SENSOR DE PRESSÃO ---
+    if (agora - tempoAnteriorPressao >= INTERVALO_PRESSAO)
     {
-        ultimoMillisPressao = agora;
-
+        tempoAnteriorPressao = agora;
         medida = scale.get_units(5);
-        alarmeSensorPressao = (medida >= LIMIAR_PRESSAO);
+        if (medida < 0)
+            medida = 0;
 
-        scale.power_down();
-        scale.power_up();
+        alarmeSensorPressao = (medida >= LIMIAR_PESO);
     }
 
-    //* --- Sensor de Movimento ---
+    // --- SENSOR DE MOVIMENTO ---
     if (agora - ultimoMillisMovimento >= INTERVALO_MOVIMENTO)
     {
         ultimoMillisMovimento = agora;
 
         VL53L0X_RangingMeasurementData_t measure;
         lox.rangingTest(&measure, false);
-
         if (measure.RangeStatus != 4)
         {
             distanciaCM = measure.RangeMilliMeter / 10;
@@ -87,7 +86,7 @@ void atualizarMonitoramento()
         }
     }
 
-    //* --- Sensor de Luz (LDR) ---
+    // --- SENSOR DE LUZ ---
     if (agora - ultimoMillisLuz >= INTERVALO_LUZ)
     {
         ultimoMillisLuz = agora;
@@ -96,9 +95,8 @@ void atualizarMonitoramento()
         alarmeSensorLuz = (leituraLDR > LIMIAR_LUZ);
     }
 
-    //* --- Resumo das leituras e estados ---
+    // --- RESUMO SERIAL ---
     Serial.println("===== RESUMO MONITORAMENTO =====");
-
     Serial.print("Alarme Pressão: ");
     Serial.print(alarmeSensorPressao ? "ATIVO" : "inativo");
     Serial.print(" | Peso: ");
