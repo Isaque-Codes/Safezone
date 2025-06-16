@@ -4,6 +4,7 @@ void setup()
 {
   Serial.begin(9600);
   iniciarMonitoramento();
+  Serial.println ("dvujdvujiuuief");
 }
 
 void loop()

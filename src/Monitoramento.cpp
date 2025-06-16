@@ -5,7 +5,7 @@
 
 //* --- PRESSÃO (HX711) ---
 const int LOADCELL_DOUT_PIN = 5;
-const int LOADCELL_SCK_PIN = 18;
+const int LOADCELL_SCK_PIN = 19;
 HX711 scale;
 bool alarmeSensorPressao = false;
 const float LIMIAR_PRESSAO = 5.0;
@@ -24,6 +24,11 @@ bool alarmeSensorLuz = false;
 const int LIMIAR_LUZ = 300;
 const unsigned long INTERVALO_LUZ = 500;
 unsigned long ultimoMillisLuz = 0;
+
+// Variáveis globais para mostrar no resumo
+float medida = 0.0;
+int distanciaCM = -1;
+int leituraLDR = 0;
 
 void iniciarMonitoramento()
 {
@@ -55,10 +60,7 @@ void atualizarMonitoramento()
     {
         ultimoMillisPressao = agora;
 
-        float medida = scale.get_units(5);
-        Serial.print("Peso (kg): ");
-        Serial.println(medida, 2);
-
+        medida = scale.get_units(5);
         alarmeSensorPressao = (medida >= LIMIAR_PRESSAO);
 
         scale.power_down();
@@ -75,16 +77,12 @@ void atualizarMonitoramento()
 
         if (measure.RangeStatus != 4)
         {
-            int distanciaCM = measure.RangeMilliMeter / 10;
-            Serial.print("Distância: ");
-            Serial.print(distanciaCM);
-            Serial.println(" cm");
-
+            distanciaCM = measure.RangeMilliMeter / 10;
             alarmeSensorMovimento = (distanciaCM >= 5 && distanciaCM <= 200);
         }
         else
         {
-            Serial.println("Fora de alcance");
+            distanciaCM = -1;
             alarmeSensorMovimento = false;
         }
     }
@@ -94,10 +92,32 @@ void atualizarMonitoramento()
     {
         ultimoMillisLuz = agora;
 
-        int leituraLDR = analogRead(pinSensorLuz);
-        Serial.print("Luminosidade: ");
-        Serial.println(leituraLDR);
-
+        leituraLDR = analogRead(pinSensorLuz);
         alarmeSensorLuz = (leituraLDR > LIMIAR_LUZ);
     }
+
+    //* --- Resumo das leituras e estados ---
+    Serial.println("===== RESUMO MONITORAMENTO =====");
+
+    Serial.print("Alarme Pressão: ");
+    Serial.print(alarmeSensorPressao ? "ATIVO" : "inativo");
+    Serial.print(" | Peso: ");
+    Serial.print(medida, 2);
+    Serial.println(" kg");
+
+    Serial.print("Alarme Movimento: ");
+    Serial.print(alarmeSensorMovimento ? "ATIVO" : "inativo");
+    Serial.print(" | Distância: ");
+    if (distanciaCM != -1)
+        Serial.print(distanciaCM);
+    else
+        Serial.print("Fora de alcance");
+    Serial.println(" cm");
+
+    Serial.print("Alarme Luz: ");
+    Serial.print(alarmeSensorLuz ? "ATIVO" : "inativo");
+    Serial.print(" | Leitura LDR: ");
+    Serial.println(leituraLDR);
+
+    Serial.println("================================");
 }
