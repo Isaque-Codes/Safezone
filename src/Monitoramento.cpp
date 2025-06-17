@@ -104,8 +104,8 @@ void atualizarMonitoramento()
         alarmeSensorLuz = (leituraLDR > LIMIAR_LUZ);
     }
 
-    // --- RESUMO SERIAL ---
-    /* Serial.println("===== RESUMO MONITORAMENTO =====");
+    /* --- RESUMO SERIAL ---
+     Serial.println("===== RESUMO MONITORAMENTO =====");
     Serial.print("Alarme Pressão: ");
     Serial.print(alarmeSensorPressao ? "ATIVO" : "inativo");
     Serial.print(" | Peso: ");
