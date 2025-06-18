@@ -21,10 +21,10 @@ unsigned long ultimoMillisMovimento = 0;
 const unsigned long INTERVALO_MOVIMENTO = 500;
 
 // ------------------- SENSOR DE LUZ -------------------
-const int pinSensorLuz = 4;
+const int pinSensorLuz = 33;
 bool alarmeSensorLuz = false;
 int leituraLDR = 0;
-const int LIMIAR_LUZ = 300;
+const int LIMIAR_LUZ = 100;
 unsigned long ultimoMillisLuz = 0;
 const unsigned long INTERVALO_LUZ = 500;
 
@@ -105,7 +105,7 @@ void atualizarMonitoramento()
     }
 
     /* --- RESUMO SERIAL ---
-     Serial.println("===== RESUMO MONITORAMENTO =====");
+    Serial.println("===== RESUMO MONITORAMENTO =====");
     Serial.print("Alarme Pressão: ");
     Serial.print(alarmeSensorPressao ? "ATIVO" : "inativo");
     Serial.print(" | Peso: ");
@@ -126,5 +126,5 @@ void atualizarMonitoramento()
     Serial.print(" | Leitura LDR: ");
     Serial.println(leituraLDR);
 
-    Serial.println("================================");*/
+    Serial.println("================================"); */
 }
