@@ -1,4 +1,4 @@
-/*#include <Arduino.h>
+#include <Arduino.h>
 #include <WiFi.h>
 #include "internet.h"
 #include "senhas.h"
@@ -48,4 +48,4 @@ void checkWiFi()
         }
         tempoUltimaConexao = tempoAtual;
     }
-}*/
+}
