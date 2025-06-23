@@ -23,12 +23,13 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 const char *mqtt_server = "broker.hivemq.com";
 const int mqtt_port = 1883;
 const char *mqtt_id = "esp32-senai134-publisher";
-const char *mqtt_topic_sub = "senai134/esp-receber";
-const char *mqtt_topic_pub = "senai134/esp-enviar";
+const char *mqtt_topic_sub = "senai134/teste1/publicando";
+const char *mqtt_topic_pub = "senai134/teste1/publicando";
 
 unsigned long tempoUltimaVerificacao = 0;
 const unsigned long intervaloVerificacao = 100;
 
+void enviarLeituraSensores(PubSubClient &client, Timezone &tempoLocal, const char *topico);
 void callback(char *, byte *, unsigned int);
 void mqttConnect(void);
 void tratamentoMsg(String);
@@ -69,6 +70,8 @@ void loop()
   atualizarMonitoramento();
 
   bool dispararAlarme = alarmeSensorPressao || alarmeSensorMovimento || alarmeSensorLuz;
+
+  enviarLeituraSensores(client, tempoLocal, mqtt_topic_pub);
 
   if (Serial.available())
   {
@@ -113,6 +116,48 @@ void loop()
     {
       // Serial.println("ALARME ATIVADO!");
     }
+  }
+}
+
+void enviarLeituraSensores(PubSubClient &client, Timezone &tempo, const char *topico)
+{
+  static unsigned long ultimaLeitura = 0;
+  const unsigned long intervaloLeitura = 3000;
+
+  unsigned long agora = millis();
+  if (agora - ultimaLeitura >= intervaloLeitura)
+  {
+    ultimaLeitura = agora;
+
+    JsonDocument doc;
+    String mensagem;
+
+    doc["sensor_luz"] = alarmeSensorLuz;
+    doc["sensor_movimento"] = alarmeSensorMovimento;
+    doc["sensor_pressao"] = alarmeSensorPressao;
+    doc["timestamp"] = tempo.now();
+
+    serializeJson(doc, mensagem);
+    Serial.println("[MQTT] Enviando leitura sensores:");
+    Serial.println(mensagem);
+    client.publish(topico, mensagem.c_str());
+  }
+}
+
+void liberarAcesso(PubSubClient &client, Timezone &tempo, const char *topico)
+{
+  unsigned long agora = millis();
+  {
+    JsonDocument doc;
+    String mensagem;
+
+    doc["sensor_luz"] = "acessoLiberado";
+    doc["timestamp"] = tempo.now();
+
+    serializeJson(doc, mensagem);
+    Serial.println("[MQTT] Enviando leitura sensores:");
+    Serial.println(mensagem);
+    client.publish(topico, mensagem.c_str());
   }
 }
 

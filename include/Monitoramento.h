@@ -6,6 +6,9 @@
 extern bool alarmeSensorPressao;
 extern bool alarmeSensorMovimento;
 extern bool alarmeSensorLuz;
+extern float medida;
+extern int distanciaCM;
+extern int leituraLDR;
 
 void iniciarMonitoramento();
 void atualizarMonitoramento();
