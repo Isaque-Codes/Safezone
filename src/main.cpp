@@ -13,6 +13,8 @@
 #define TX_FINGERPRINT 17
 #define PASSWORD 0x00000000
 
+#define pinButton 12
+
 FingerprintSensor sensorDigital(&Serial2, PASSWORD, RX_FINGERPRINT, TX_FINGERPRINT);
 
 WiFiClient espClient;
@@ -27,8 +29,10 @@ const char *mqtt_topic_sub = "senai134/teste1/publicando";
 const char *mqtt_topic_pub = "senai134/teste1/publicando";
 
 unsigned long tempoUltimaVerificacao = 0;
-const unsigned long intervaloVerificacao = 100;
+const unsigned long intervaloVerificacao = 1000;
+unsigned int novaTentativa = 0;
 
+void liberarAcesso(PubSubClient &client, Timezone &tempo, const char *topico);
 void enviarLeituraSensores(PubSubClient &client, Timezone &tempoLocal, const char *topico);
 void callback(char *, byte *, unsigned int);
 void mqttConnect(void);
@@ -69,11 +73,9 @@ void loop()
 
   atualizarMonitoramento();
 
-  bool dispararAlarme = alarmeSensorPressao || alarmeSensorMovimento || alarmeSensorLuz;
-
   enviarLeituraSensores(client, tempoLocal, mqtt_topic_pub);
 
-  if (Serial.available())
+  /*if (Serial.available())
   {
     char opcao = Serial.read();
 
@@ -99,22 +101,56 @@ void loop()
       Serial.println("Opcao invalida.");
       break;
     }
+  }*/
+
+  static int count = 0;
+
+  unsigned long currentTime = millis();
+
+  bool stateButton = digitalRead(pinButton);
+  static bool previousStateButton = 1;
+  static bool lastAction = 1;
+
+  const unsigned long debounceTime = 50;
+  static unsigned long previousTime = 0;
+
+  if (stateButton != previousStateButton)
+  {
+    previousTime = currentTime;
   }
 
-  // Checagem periódica não bloqueante
+  if ((currentTime - previousTime) > debounceTime)
+  {
+    if (stateButton != lastAction)
+    {
+      lastAction = stateButton;
+      if (!stateButton)
+      {
+        count++;
+        sensorDigital.verifyFingerprint();
+      }
+      else
+      {
+        // O botao foi solto
+      }
+    }
+  }
+
   unsigned long tempoAtual = millis();
   if (tempoAtual - tempoUltimaVerificacao >= intervaloVerificacao)
   {
     tempoUltimaVerificacao = tempoAtual;
 
-    if (sensorDigital.isAccessGranted())
+    if (sensorDigital.isAccessGranted() && contagem > novaTentativa)
     {
-      // Serial.println("Acesso autorizado via impressão digital!");
+      liberarAcesso(client, tempoLocal, mqtt_topic_pub);
+      novaTentativa++;
     }
 
-    if (dispararAlarme)
+    if (!sensorDigital.isAccessGranted() && contagem > novaTentativa)
     {
-      // Serial.println("ALARME ATIVADO!");
+      liberarAcesso(client, tempoLocal, mqtt_topic_pub);
+      novaTentativa++;
     }
   }
 }
@@ -151,7 +187,7 @@ void liberarAcesso(PubSubClient &client, Timezone &tempo, const char *topico)
     JsonDocument doc;
     String mensagem;
 
-    doc["sensor_luz"] = "acessoLiberado";
+    doc["liberar_Acesso"] = "acessoLiberado";
     doc["timestamp"] = tempo.now();
 
     serializeJson(doc, mensagem);
@@ -253,8 +289,8 @@ void templateDisplay()
   lcd.print("Ambiente Monitorado");
 
   lcd.setCursor(0, 1);
-  lcd.print("Temp:     C"); // (6,1)
+  lcd.print("Temp:     C");
 
   lcd.setCursor(0, 2);
-  lcd.print("Umid:     %"); // (6,1)
+  lcd.print("Umid:     %");
 }

@@ -4,6 +4,8 @@
 #include <Adafruit_Fingerprint.h>
 #include <HardwareSerial.h>
 
+extern unsigned int contagem;
+
 class FingerprintSensor
 {
 public:
@@ -28,4 +30,4 @@ private:
     uint8_t getFingerprintIDez();
 };
 
-#endif // FINGERPRINT_SENSOR_H
+#endif

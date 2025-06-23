@@ -6,6 +6,8 @@ FingerprintSensor::FingerprintSensor(HardwareSerial *serial, uint32_t password, 
 {
 }
 
+unsigned int contagem = 0;
+
 bool FingerprintSensor::begin(long baudRate)
 {
     _mySerial->begin(baudRate, SERIAL_8N1, _rxPin, _txPin);
@@ -107,6 +109,8 @@ void FingerprintSensor::verifyFingerprint()
     Serial.println("Aguardando o dedo...");
 
     _liberacaoAcesso = false;
+    contagem++;
+
     uint8_t p = getFingerprintIDez();
     if (p == FINGERPRINT_OK)
     {
