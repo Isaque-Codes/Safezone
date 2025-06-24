@@ -13,7 +13,7 @@
 #define TX_FINGERPRINT 17
 #define PASSWORD 0x00000000
 
-#define pinButton 12
+#define pinButton 14
 
 FingerprintSensor sensorDigital(&Serial2, PASSWORD, RX_FINGERPRINT, TX_FINGERPRINT);
 
@@ -44,6 +44,7 @@ void setup()
 {
   Serial.begin(9600);
   Serial2.begin(57600, SERIAL_8N1, RX_FINGERPRINT, TX_FINGERPRINT);
+  pinMode(pinButton, INPUT_PULLUP);
 
   lcd.init();
   lcd.backlight();
@@ -75,6 +76,8 @@ void loop()
 
   enviarLeituraSensores(client, tempoLocal, mqtt_topic_pub);
 
+  //* ACESSO ADM PARA MANIPULAR BANCO DE DIGITAIS
+
   /*if (Serial.available())
   {
     char opcao = Serial.read();
@@ -103,7 +106,9 @@ void loop()
     }
   }*/
 
-  static int count = 0;
+  //* TENTATIVA DE ACESSO VIA PRESSIONAMENTO DE BOTAO
+
+  /*static int count = 0;
 
   unsigned long currentTime = millis();
 
@@ -131,9 +136,13 @@ void loop()
       }
       else
       {
-        // O botao foi solto
       }
     }
+  }*/
+
+  if (alarmeSensorMovimento)
+  {
+    sensorDigital.verifyFingerprint();
   }
 
   unsigned long tempoAtual = millis();

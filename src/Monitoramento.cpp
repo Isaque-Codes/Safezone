@@ -16,9 +16,9 @@ const unsigned long INTERVALO_PRESSAO = 5000;
 // ------------------- SENSOR DE MOVIMENTO -------------------
 Adafruit_VL53L0X lox;
 bool alarmeSensorMovimento = false;
-int distanciaCM = -1;
 unsigned long ultimoMillisMovimento = 0;
 const unsigned long INTERVALO_MOVIMENTO = 500;
+int distanciaCM = 0;
 
 // ------------------- SENSOR DE LUZ -------------------
 const int pinSensorLuz = 33;
@@ -60,7 +60,7 @@ void iniciarMonitoramento()
     pinMode(pinSensorLuz, INPUT);
 }
 
-// ------------------- LOOP DE MONITORAMENTO -------------------
+//* ------------------- LOOP DE MONITORAMENTO -------------------
 void atualizarMonitoramento()
 {
     unsigned long agora = millis();
@@ -83,15 +83,14 @@ void atualizarMonitoramento()
 
         VL53L0X_RangingMeasurementData_t measure;
         lox.rangingTest(&measure, false);
-        if (measure.RangeStatus != 4)
+        distanciaCM = measure.RangeMilliMeter / 10;
+        if (distanciaCM < 40)
         {
-            distanciaCM = measure.RangeMilliMeter / 10;
-            alarmeSensorMovimento = (distanciaCM >= 5 && distanciaCM <= 200);
+            alarmeSensorMovimento = 1;
         }
         else
         {
-            distanciaCM = -1;
-            alarmeSensorMovimento = false;
+            alarmeSensorMovimento = 0;
         }
     }
 
@@ -104,7 +103,7 @@ void atualizarMonitoramento()
         alarmeSensorLuz = (leituraLDR > LIMIAR_LUZ);
     }
 
-    /* -- -RESUMO SERIAL-- -
+    // -- -RESUMO SERIAL-- -
     Serial.println("===== RESUMO MONITORAMENTO =====");
     Serial.print("Alarme Pressão: ");
     Serial.print(alarmeSensorPressao ? "ATIVO" : "inativo");
@@ -126,5 +125,5 @@ void atualizarMonitoramento()
     Serial.print(" | Leitura LDR: ");
     Serial.println(leituraLDR);
 
-    Serial.println("================================");*/
+    Serial.println("================================");
 }
