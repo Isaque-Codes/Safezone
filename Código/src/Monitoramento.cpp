@@ -3,7 +3,11 @@
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
 
-// ------------------- SENSOR DE PRESSÃO -------------------
+// ====================================================================================
+// VARIAVEIS E CONSTANTES DE MONITORAMENTO
+// ====================================================================================
+
+// ------------------- SENSOR DE PRESSAO -------------------
 const int LOADCELL_DOUT_PIN = 5;
 const int LOADCELL_SCK_PIN = 18;
 HX711 scale;
@@ -28,10 +32,14 @@ const int LIMIAR_LUZ = 100;
 unsigned long ultimoMillisLuz = 0;
 const unsigned long INTERVALO_LUZ = 500;
 
-// ------------------- INICIALIZAÇÃO -------------------
+// ====================================================================================
+// FUNCOES DE MONITORAMENTO
+// ====================================================================================
+
+// ------------------- INICIALIZACAO -------------------
 void iniciarMonitoramento()
 {
-    // PRESSÃO
+    // PRESSAO
     scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
     scale.set_scale(41795);
 
@@ -39,8 +47,8 @@ void iniciarMonitoramento()
     unsigned long start = millis();
     while (millis() - start < 2000)
     {
-        // Executa outras tarefas aqui se necessário
-        yield(); // para evitar watchdog reset em alguns ambientes
+        // Executa outras tarefas aqui se necessario
+        yield(); // para evitar watchdog reset
     }
 
     scale.tare();
@@ -51,9 +59,7 @@ void iniciarMonitoramento()
     Wire.begin();
     if (!lox.begin())
     {
-        Serial.println("Erro ao iniciar sensor VL53L0X");
-        while (1)
-            ;
+        Serial.println("Falha ao iniciar o sensor de movimento. Verifique a conexão.");
     }
 
     // LUZ
@@ -65,7 +71,7 @@ void atualizarMonitoramento()
 {
     unsigned long agora = millis();
 
-    // --- SENSOR DE PRESSÃO ---
+    // --- SENSOR DE PRESSAO ---
     if (agora - tempoAnteriorPressao >= INTERVALO_PRESSAO)
     {
         tempoAnteriorPressao = agora;
@@ -103,8 +109,8 @@ void atualizarMonitoramento()
         alarmeSensorLuz = (leituraLDR > LIMIAR_LUZ);
     }
 
-    // -- -RESUMO SERIAL-- -
-    Serial.println("===== RESUMO MONITORAMENTO =====");
+    // --- RESUMO SERIAL PARA DEBUG ---
+    /* Serial.println("===== RESUMO MONITORAMENTO =====");
     Serial.print("Alarme Pressão: ");
     Serial.print(alarmeSensorPressao ? "ATIVO" : "inativo");
     Serial.print(" | Peso: ");
@@ -125,5 +131,5 @@ void atualizarMonitoramento()
     Serial.print(" | Leitura LDR: ");
     Serial.println(leituraLDR);
 
-    Serial.println("================================");
+    Serial.println("================================"); */
 }

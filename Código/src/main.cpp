@@ -7,50 +7,56 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <ezTime.h>
-#include <LiquidCrystal_I2C.h>
+
+// --- Configuracoes de Hardware e Rede ---
 
 #define RX_FINGERPRINT 16
 #define TX_FINGERPRINT 17
 #define PASSWORD 0x00000000
-
 #define pinButton 12
+#define pinoTrava 25
+
+// --- Instanciacao de Objetos ---
 
 FingerprintSensor sensorDigital(&Serial2, PASSWORD, RX_FINGERPRINT, TX_FINGERPRINT);
-
 WiFiClient espClient;
 PubSubClient client(espClient);
 Timezone tempoLocal;
-LiquidCrystal_I2C lcd(0x27, 20, 4);
+
+// --- Configuracoes de Rede (MQTT)
 
 const char *mqtt_server = "broker.hivemq.com";
 const int mqtt_port = 1883;
-const char *mqtt_id = "esp32-senai134-publisher";
-const char *mqtt_topic_sub = "senai134/teste1/publicando";
-const char *mqtt_topic_pub = "senai134/teste1/publicando";
+const char *mqtt_id = "senai134-safezone-publisher";
+const char *mqtt_topic_pub = "safezone-events";
 
-unsigned long tempoUltimaVerificacao = 0;
-const unsigned long intervaloVerificacao = 1000;
-unsigned int novaTentativa = 0;
+// --- Variaveis de Estado ---
+
+bool portaDestravada = false;
+unsigned long tempoInicioDestravamento = 0;
+const unsigned long duracaoDestravamento = 3000; // Tempo que a porta fica aberta
+
+// --- Prototipacao das Funcoes ---
 
 void liberarAcesso(PubSubClient &client, Timezone &tempo, const char *topico);
 void enviarLeituraSensores(PubSubClient &client, Timezone &tempoLocal, const char *topico);
-void callback(char *, byte *, unsigned int);
 void mqttConnect(void);
-void tratamentoMsg(String);
-void mostraDisplay(float temp, float umid, time_t timestamp);
-void templateDisplay(void);
+
+// ====================================================================================
+// SETUP
+// ====================================================================================
 
 void setup()
 {
   Serial.begin(9600);
   Serial2.begin(57600, SERIAL_8N1, RX_FINGERPRINT, TX_FINGERPRINT);
 
-  lcd.init();
-  lcd.backlight();
+  pinMode(pinoTrava, OUTPUT);
+  digitalWrite(pinoTrava, LOW);
+  pinMode(pinButton, INPUT_PULLUP);
 
   conectaWiFi();
   client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(callback);
   tempoLocal.setLocation("America/Sao_Paulo");
 
   iniciarMonitoramento();
@@ -60,8 +66,12 @@ void setup()
     Serial.println("Falha ao inicializar o sensor de digitais.");
   }
 
-  Serial.println("Sistema de segurança iniciado.");
+  Serial.println("Sistema de seguranca iniciado.");
 }
+
+// ====================================================================================
+// LOOP
+// ====================================================================================
 
 void loop()
 {
@@ -75,7 +85,8 @@ void loop()
 
   enviarLeituraSensores(client, tempoLocal, mqtt_topic_pub);
 
-  //? Cadastro, verificacao, exclusao e contagem de impressoes digitais
+  // --- Sessao para gerenciamento de impressoes digitais ---
+  // --- Desativado durante o funcionamento, que apenas verifica ao apertar o botao ---
   /*if (Serial.available())
   {
     char opcao = Serial.read();
@@ -104,8 +115,8 @@ void loop()
     }
   }*/
 
-  //? Verificacao de impressao digital pelo botao
-  static int count = 0;
+  // --- Verificacao de impressoes digitais pelo botao (com tecnica de debounce) ---
+  static bool novaTentativaDeAcesso = false;
 
   unsigned long currentTime = millis();
 
@@ -126,34 +137,56 @@ void loop()
     if (stateButton != lastAction)
     {
       lastAction = stateButton;
-      if (!stateButton)
+      if (!stateButton) // O botão foi pressionado
       {
-        count++;
         sensorDigital.verifyFingerprint();
+        novaTentativaDeAcesso = true;
       }
       else
       {
-        //? O botao foi solto
+        // O botao foi solto
       }
     }
   }
 
-  unsigned long tempoAtual = millis();
-  if (tempoAtual - tempoUltimaVerificacao >= intervaloVerificacao)
+  if (novaTentativaDeAcesso)
   {
-    tempoUltimaVerificacao = tempoAtual;
+    liberarAcesso(client, tempoLocal, mqtt_topic_pub);
+    novaTentativaDeAcesso = false;
+  }
 
-    if (sensorDigital.isAccessGranted() && contagem > novaTentativa)
-    {
-      liberarAcesso(client, tempoLocal, mqtt_topic_pub);
-      novaTentativa++;
-    }
+  if (portaDestravada && (millis() - tempoInicioDestravamento >= duracaoDestravamento))
+  {
+    portaDestravada = false;
+    digitalWrite(pinoTrava, LOW); // Trava a porta
+  }
+}
 
-    if (!sensorDigital.isAccessGranted() && contagem > novaTentativa)
-    {
-      liberarAcesso(client, tempoLocal, mqtt_topic_pub);
-      novaTentativa++;
-    }
+// ====================================================================================
+// FUNCOES
+// ====================================================================================
+
+void liberarAcesso(PubSubClient &client, Timezone &tempo, const char *topico)
+{
+  unsigned long agora = millis();
+  {
+    JsonDocument doc;
+    String mensagem;
+
+    doc["liberar_Acesso"] = sensorDigital.isAccessGranted(); // Envia as tentativas de acesso (bem ou nao sucedidas)
+    doc["timestamp"] = tempo.now();
+
+    serializeJson(doc, mensagem);
+    Serial.println("[MQTT] Enviando leitura sensores:");
+    Serial.println(mensagem);
+    client.publish(topico, mensagem.c_str());
+  }
+
+  if (sensorDigital.isAccessGranted())
+  {
+    portaDestravada = true;
+    tempoInicioDestravamento = millis();
+    digitalWrite(pinoTrava, HIGH); // Destrava a porta
   }
 }
 
@@ -170,97 +203,15 @@ void enviarLeituraSensores(PubSubClient &client, Timezone &tempo, const char *to
     JsonDocument doc;
     String mensagem;
 
+    // --- Envia as leituras do sistema de alarme a cada 3 segundos ---
     doc["sensor_luz"] = alarmeSensorLuz;
     doc["sensor_movimento"] = alarmeSensorMovimento;
     doc["sensor_pressao"] = alarmeSensorPressao;
     doc["timestamp"] = tempo.now();
 
     serializeJson(doc, mensagem);
-    Serial.println("[MQTT] Enviando leitura sensores:");
-    Serial.println(mensagem);
     client.publish(topico, mensagem.c_str());
   }
-}
-
-void liberarAcesso(PubSubClient &client, Timezone &tempo, const char *topico)
-{
-  unsigned long agora = millis();
-  {
-    JsonDocument doc;
-    String mensagem;
-
-    doc["liberar_Acesso"] = "acessoLiberado";
-    doc["timestamp"] = tempo.now();
-
-    serializeJson(doc, mensagem);
-    Serial.println("[MQTT] Enviando leitura sensores:");
-    Serial.println(mensagem);
-    client.publish(topico, mensagem.c_str());
-  }
-}
-
-void tratamentoMsg(String msg)
-{
-  String mensagem = msg;
-  JsonDocument doc;
-  DeserializationError erro = deserializeJson(doc, mensagem);
-
-  if (erro)
-  {
-    Serial.println("Mensagem Recebida não esta no formato Json");
-    return;
-  }
-
-  else
-  {
-    float temperatura, umidade;
-    time_t timestamp;
-
-    if (!doc["temp"].isNull())
-      temperatura = doc["temp"];
-
-    if (!doc["umid"].isNull())
-      umidade = doc["umid"];
-
-    if (!doc["timestamp"].isNull())
-      timestamp = doc["timestamp"];
-
-    mostraDisplay(temperatura, umidade, timestamp);
-  }
-}
-
-void callback(char *topic, byte *payload, unsigned int length)
-{
-  Serial.printf("mensagem recebida em %s: ", topic);
-
-  String mensagem = "";
-  for (unsigned int i = 0; i < length; i++)
-  {
-    char c = (char)payload[i];
-    mensagem += c;
-  }
-  Serial.println(mensagem);
-
-  tratamentoMsg(mensagem);
-}
-
-void mostraDisplay(float temp, float umid, time_t time)
-{
-  float temperatura = temp;
-  float umidade = umid;
-  time_t timestamp = time;
-
-  lcd.setCursor(6, 1);
-  temperatura = constrain(temperatura, 0, 99);
-  lcd.print(temperatura, 1);
-
-  umidade = constrain(umidade, 0, 100);
-  lcd.setCursor(6, 2);
-  lcd.print(umidade, 1);
-
-  lcd.setCursor(0, 3);
-  tempoLocal.setTime(timestamp);
-  lcd.print(tempoLocal.dateTime("d/m/Y H:i"));
 }
 
 void mqttConnect()
@@ -272,7 +223,6 @@ void mqttConnect()
     if (client.connect(mqtt_id))
     {
       Serial.println("Conectado com sucesso");
-      client.subscribe(mqtt_topic_sub);
     }
 
     else
@@ -283,16 +233,4 @@ void mqttConnect()
       delay(5000);
     }
   }
-}
-
-void templateDisplay()
-{
-  lcd.home();
-  lcd.print("Ambiente Monitorado");
-
-  lcd.setCursor(0, 1);
-  lcd.print("Temp:     C");
-
-  lcd.setCursor(0, 2);
-  lcd.print("Umid:     %");
 }

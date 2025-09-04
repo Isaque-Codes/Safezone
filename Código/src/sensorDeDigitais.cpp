@@ -1,23 +1,25 @@
 #include "sensorDeDigitais.h"
 #include <Arduino.h>
 
+// --- Construtor: Inicializa os objetos e variaveis da classe ---
 FingerprintSensor::FingerprintSensor(HardwareSerial *serial, uint32_t password, int rxPin, int txPin)
     : _finger(serial, password), _mySerial(serial), _rxPin(rxPin), _txPin(txPin), _liberacaoAcesso(false)
 {
+    // O construtor usa uma lista de inicializacao para configurar os membros da classe.
 }
 
-unsigned int contagem = 0;
-
+// --- Inicializa o sensor e verifica a comunicacao ---
 bool FingerprintSensor::begin(long baudRate)
 {
     _mySerial->begin(baudRate, SERIAL_8N1, _rxPin, _txPin);
     Serial.begin(9600);
     while (!Serial)
     {
-        delay(100);
+        delay(100); // Espera o monitor serial ficar pronto.
     }
     Serial.println("Iniciando o sistema de impressao digital...");
 
+    // Tenta se comunicar com o sensor usando a senha.
     if (_finger.verifyPassword())
     {
         Serial.println("Sensor de impressao digital encontrado!");
@@ -29,6 +31,7 @@ bool FingerprintSensor::begin(long baudRate)
         return false;
     }
 
+    // Pega informacoes basicas do sensor, como capacidade de armazenamento.
     _finger.getParameters();
     Serial.print("Capacidade de armazenamento: ");
     Serial.println(_finger.capacity);
@@ -40,6 +43,7 @@ bool FingerprintSensor::begin(long baudRate)
     return true;
 }
 
+// --- Apenas imprime o menu de opcoes no monitor serial ---
 void FingerprintSensor::printMenu()
 {
     Serial.println("----------------------------------------");
@@ -52,9 +56,11 @@ void FingerprintSensor::printMenu()
     Serial.print("Sua escolha: ");
 }
 
+// --- Fluxo principal para cadastrar uma nova digital ---
 void FingerprintSensor::enrollFingerprint()
 {
     int id;
+    // Pede ao usuario um ID para salvar a digital.
     Serial.print("Digite o ID para a nova impressao digital (1 a ");
     Serial.print(_finger.capacity);
     Serial.print("): ");
@@ -72,9 +78,11 @@ void FingerprintSensor::enrollFingerprint()
     Serial.println("Coloque o dedo no sensor para cadastrar...");
     Serial.println("Aguardando o dedo...");
 
+    // Chama a funcao que faz o processo de leitura em duas etapas.
     uint8_t p = getFingerprintEnroll();
     if (p == FINGERPRINT_OK)
     {
+        // Se a leitura foi bem sucedida, salva o modelo na memoria do sensor.
         p = _finger.storeModel(id);
         switch (p)
         {
@@ -103,14 +111,15 @@ void FingerprintSensor::enrollFingerprint()
     printMenu();
 }
 
+// --- Verifica se a digital apresentada existe no banco de dados ---
 void FingerprintSensor::verifyFingerprint()
 {
     Serial.println("Coloque o dedo no sensor para verificar...");
     Serial.println("Aguardando o dedo...");
 
-    _liberacaoAcesso = false;
-    contagem++;
+    _liberacaoAcesso = false; // Reseta a permissao antes de cada nova verificacao.
 
+    // Chama a funcao de busca rapida.
     uint8_t p = getFingerprintIDez();
     if (p == FINGERPRINT_OK)
     {
@@ -119,7 +128,7 @@ void FingerprintSensor::verifyFingerprint()
         Serial.print(_finger.fingerID);
         Serial.print(" | Confianca: ");
         Serial.println(_finger.confidence);
-        _liberacaoAcesso = true;
+        _liberacaoAcesso = true; // Permite o acesso se a digital for encontrada.
     }
     else if (p == FINGERPRINT_NOFINGER)
     {
@@ -142,6 +151,7 @@ void FingerprintSensor::verifyFingerprint()
     printMenu();
 }
 
+// --- Apaga uma digital especifica da memoria do sensor ---
 void FingerprintSensor::deleteFingerprint()
 {
     int id;
@@ -160,6 +170,7 @@ void FingerprintSensor::deleteFingerprint()
     Serial.print("Excluindo impressao digital com ID: ");
     Serial.println(id);
 
+    // Manda o comando de exclusao para o sensor.
     uint8_t p = _finger.deleteModel(id);
     switch (p)
     {
@@ -181,6 +192,7 @@ void FingerprintSensor::deleteFingerprint()
     printMenu();
 }
 
+// --- Pede ao sensor para contar quantas digitais estao salvas ---
 void FingerprintSensor::getFingerprintCount()
 {
     uint8_t p = _finger.getTemplateCount();
@@ -199,25 +211,28 @@ void FingerprintSensor::getFingerprintCount()
     printMenu();
 }
 
+// --- Funcao publica para o main.cpp saber se o acesso foi liberado ---
 bool FingerprintSensor::isAccessGranted()
 {
     return _liberacaoAcesso;
 }
 
+// --- Funcao interna que faz o processo de leitura em duas etapas para o cadastro ---
 uint8_t FingerprintSensor::getFingerprintEnroll()
 {
+    // --- ETAPA 1: Captura da primeira imagem ---
     uint8_t p = -1;
     Serial.println("Aguardando o dedo...");
     while (p != FINGERPRINT_OK)
     {
-        p = _finger.getImage();
+        p = _finger.getImage(); // Pede uma imagem ao sensor.
         switch (p)
         {
         case FINGERPRINT_OK:
             Serial.println("Imagem capturada.");
             break;
         case FINGERPRINT_NOFINGER:
-            break;
+            break; // Continua tentando se nao houver dedo.
         case FINGERPRINT_PACKETRECIEVEERR:
             Serial.println("Erro de comunicacao.");
             return p;
@@ -231,6 +246,7 @@ uint8_t FingerprintSensor::getFingerprintEnroll()
         }
     }
 
+    // Converte a imagem em um "template", um formato de dados que o sensor entende.
     p = _finger.image2Tz(1);
     switch (p)
     {
@@ -252,6 +268,7 @@ uint8_t FingerprintSensor::getFingerprintEnroll()
         return p;
     }
 
+    // Pede ao usuario para remover o dedo, para garantir duas leituras diferentes.
     Serial.println("Retire o dedo do sensor.");
     delay(2000);
     p = -1;
@@ -262,6 +279,7 @@ uint8_t FingerprintSensor::getFingerprintEnroll()
     }
     Serial.println("Dedo removido.");
 
+    // --- ETAPA 2: Captura da segunda imagem (do mesmo dedo) ---
     Serial.println("Coloque o MESMO dedo novamente no sensor...");
     Serial.println("Aguardando o dedo...");
 
@@ -289,6 +307,7 @@ uint8_t FingerprintSensor::getFingerprintEnroll()
         }
     }
 
+    // Converte a segunda imagem em um segundo template.
     p = _finger.image2Tz(2);
     switch (p)
     {
@@ -310,6 +329,7 @@ uint8_t FingerprintSensor::getFingerprintEnroll()
         return p;
     }
 
+    // Pede ao sensor para combinar os dois templates em um modelo final mais preciso.
     p = _finger.createModel();
     switch (p)
     {
@@ -324,9 +344,10 @@ uint8_t FingerprintSensor::getFingerprintEnroll()
         Serial.println(p);
         return p;
     }
-    return FINGERPRINT_OK;
+    return FINGERPRINT_OK; // Retorna sucesso se tudo deu certo.
 }
 
+// --- Funcao de busca mais simples, nao usada no fluxo principal, mas util para testes ---
 uint8_t FingerprintSensor::getFingerprintID()
 {
     uint8_t p = _finger.getImage();
@@ -350,6 +371,7 @@ uint8_t FingerprintSensor::getFingerprintID()
         return p;
     }
 
+    // Converte a imagem em template.
     p = _finger.image2Tz(1);
     switch (p)
     {
@@ -371,6 +393,7 @@ uint8_t FingerprintSensor::getFingerprintID()
         return p;
     }
 
+    // Procura o template no banco de dados.
     p = _finger.fingerFastSearch();
     if (p == FINGERPRINT_OK)
     {
@@ -386,19 +409,20 @@ uint8_t FingerprintSensor::getFingerprintID()
     }
 }
 
+// --- Funcao otimizada para busca: captura a imagem e procura no banco de dados ---
 uint8_t FingerprintSensor::getFingerprintIDez()
 {
     uint8_t p = -1;
+    // Fica em loop ate conseguir uma imagem valida do dedo.
     while (p != FINGERPRINT_OK)
     {
         p = _finger.getImage();
         switch (p)
         {
         case FINGERPRINT_OK:
-            Serial.println("Imagem capturada.");
+            // Serial.println("Imagem capturada."); // Comentado para nao poluir a serial na operacao normal.
             break;
         case FINGERPRINT_NOFINGER:
-            // Serial.println("Nenhum dedo detectado."); // Descomente para depuracao
             break;
         case FINGERPRINT_PACKETRECIEVEERR:
             Serial.println("Erro de comunicacao.");
@@ -413,10 +437,12 @@ uint8_t FingerprintSensor::getFingerprintIDez()
         }
     }
 
+    // Converte a imagem em template.
     p = _finger.image2Tz(1);
     if (p != FINGERPRINT_OK)
         return p;
 
+    // Executa a busca rapida do template no banco de dados do sensor.
     p = _finger.fingerFastSearch();
     return p;
 }

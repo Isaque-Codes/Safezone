@@ -3,7 +3,7 @@
 #include "internet.h"
 #include "senhas.h"
 
-//* -------CONFIGURAÇÃO DO WIFI--------
+// ------- CONFIGURAÇÃO DO WIFI --------
 
 const unsigned long tempoEsperaConexao = 20000;
 const unsigned long tempoEsperaReconexao = 10000;
